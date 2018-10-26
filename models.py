@@ -8,7 +8,7 @@ db = SqliteDatabase('journal.db')
 
 class Post(Model):
     title = CharField()
-    date = DateField()  # what am i going to store date as?
+    date = DateField()
     timespent = CharField()
     content = TextField()
     resources = TextField()

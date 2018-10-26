@@ -1,47 +1,67 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, abort, flash
+from flask_wtf import CsrfProtect
 
 import forms
 import models
 
-
 DEBUG = True
-PORT = 8000
+PORT = 5000
 HOST = '0.0.0.0'
 
+csrf = CsrfProtect()
 app = Flask(__name__)
 app.secret_key = 'lf;ksd;flkajsd'
+csrf.init_app(app)
 
 
 @app.route('/')
 @app.route('/entries', methods=('GET', 'POST'))
 def index():
+    """Shows all the posts-home page"""
     posts = models.Post.select().limit(100)
     return render_template('index.html', stream=posts)
 
 
-@app.route('/details')
-def details():
-    posts = models.Post.select().limit(100)
-    return render_template('detail.html', stream=posts)
+@app.route('/entries/<title>', methods=('GET', 'POST'))
+def view_post(title="LIFE"):
+    """Shows the post selected"""
+    post = models.Post.select().where(models.Post.title == title).get()
+    return render_template('detail.html', post=post)
 
 
-@app.route('/entries/edit')
-def edit():
+@app.route('/entries/<title>/edit', methods=('GET', 'POST'))
+def edit(title):
+    """Edits the selected entry"""
+    post = models.Post.select().where(models.Post.title == title).get()
     form = forms.PostForm()
-    posts = models.Post.select()
-    # TODO: for editing is there any special method in databases/peewee?
-    return render_template('edit.html', stream=posts)  # send the post/posts for giving the input a default value.
 
-# models.Post
+    if form.validate_on_submit():
+        # re-saving the data in the database
+        post.title = form.title.data
+        post.date = form.date.data
+        post.timespent = form.timespent.data
+        post.content = form.content.data
+        post.resources = form.resources.data
+        post.save()
+        flash("Post successfully edited!", "success")
+        return redirect(url_for('index'))
+    else:
+        # saving default info to the template
+        form.title.default = post.title
+        form.date.default = post.date
+        form.timespent.default = post.timespent
+        form.content.default = post.content
+        form.resources.default = post.resources
+        form.process()
+        return render_template('edit-template.html', form=form)
 
 
 @app.route('/entries/add', methods=('GET', 'POST'))
 def add():
+    """Adds new entry"""
     form = forms.PostForm()
     if form.validate_on_submit():
         models.Post.create(
-            # todo: 1. i can create new posts from console with string
-            # todo: 2. i can not create a new post within this method even with string
             title=form.title.data,
             date=form.date.data,
             timespent=form.timespent.data,
@@ -49,20 +69,18 @@ def add():
             resources=form.resources.data
         )
         return redirect(url_for('index'))
-    return render_template('new.html')
+    return render_template('add.html', form=form)
+
+
+@app.route('/entries/<title>/delete')
+def delete(title):
+    """Deletes the selected post."""
+    post = models.Post.select().where(models.Post.title == title).get()
+    post.delete_instance()
+    flash('The post has been deleted', "success")
+    return redirect(url_for('index'))
 
 
 if __name__ == '__main__':
     models.initialize()
     app.run(debug=DEBUG, port=PORT, host=HOST)
-    # my_input = input('What do you want the title to be?')
-    # models.Post.create(
-    #     title=my_input,
-    #     date="2018-10-10",
-    #     timespent="3",
-    #     content="some content",
-    #     resources="it doesnt matter"
-    # )
-    # for post in models.Post.select():
-    #     print(post.title)
-
